@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { dashboardAPI, transactionAPI } from '../services/api';
+import { dashboardAPI, transactionAPI, accountAPI } from '../services/api';
 import StatBox from '../components/StatBox';
 import Speedometer from '../components/Speedometer';
 import Card from '../components/Card';
@@ -41,9 +41,19 @@ const Dashboard = () => {
     const [customStartDate, setCustomStartDate] = useState('');
     const [customEndDate, setCustomEndDate] = useState('');
 
+    // Account selection state
+    const [accounts, setAccounts] = useState([]);
+    const [selectedAccountId, setSelectedAccountId] = useState('all');
+    const [selectedAccountBalance, setSelectedAccountBalance] = useState(0);
+
     useEffect(() => {
+        fetchAccounts();
         fetchDashboardData();
     }, [dateRange, customStartDate, customEndDate]);
+
+    useEffect(() => {
+        updateSelectedAccountBalance();
+    }, [selectedAccountId, accounts]);
 
     const getDateRangeParams = () => {
         const now = new Date();
@@ -80,6 +90,25 @@ const Dashboard = () => {
             };
         }
         return {};
+    };
+
+    const fetchAccounts = async () => {
+        try {
+            const response = await accountAPI.getAll();
+            setAccounts(response.data);
+        } catch (error) {
+            console.error('Error fetching accounts:', error);
+        }
+    };
+
+    const updateSelectedAccountBalance = () => {
+        if (selectedAccountId === 'all') {
+            const total = accounts.reduce((sum, acc) => sum + parseFloat(acc.balance || 0), 0);
+            setSelectedAccountBalance(total);
+        } else {
+            const account = accounts.find(acc => acc._id === selectedAccountId);
+            setSelectedAccountBalance(account ? parseFloat(account.balance || 0) : 0);
+        }
     };
 
     const fetchDashboardData = async () => {
@@ -176,12 +205,34 @@ const Dashboard = () => {
                     value={`₹${summary?.balance?.toLocaleString() || 0}`}
                     color="primary"
                 />
-                <StatBox
-                    icon={Wallet}
-                    label="Account Balance"
-                    value={`₹${summary?.totalAccountBalance?.toLocaleString() || 0}`}
-                    color="purple"
-                />
+                <Card className="relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-purple-500/10 to-pink-500/10 rounded-full -mr-12 -mt-12" />
+                    <div className="relative">
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center">
+                                <Wallet className="w-6 h-6 text-white" />
+                            </div>
+                            <div className="flex-1">
+                                <p className="text-sm text-gray-600 dark:text-gray-400">Account Balance</p>
+                                <select
+                                    value={selectedAccountId}
+                                    onChange={(e) => setSelectedAccountId(e.target.value)}
+                                    className="text-sm font-medium bg-transparent border-none focus:ring-0 p-0 text-gray-900 dark:text-white cursor-pointer hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
+                                >
+                                    <option value="all">All Accounts</option>
+                                    {accounts.map((account) => (
+                                        <option key={account._id} value={account._id}>
+                                            {account.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                        <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                            ₹{selectedAccountBalance.toLocaleString()}
+                        </p>
+                    </div>
+                </Card>
             </div>
 
             {/* Speedometer and Monthly Chart */}
@@ -311,3 +362,4 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+
