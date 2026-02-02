@@ -3,7 +3,7 @@ import { accountAPI } from '../services/api';
 import Card from '../components/Card';
 import Modal from '../components/Modal';
 import Loading from '../components/Loading';
-import { Plus, ArrowRightLeft, Wallet } from 'lucide-react';
+import { Plus, ArrowRightLeft, Wallet, Trash2 } from 'lucide-react';
 
 const Accounts = () => {
     const [accounts, setAccounts] = useState([]);
@@ -62,6 +62,51 @@ const Accounts = () => {
         }
     };
 
+
+    const handleDeleteAccount = async (accountId, accountName) => {
+        try {
+            // First, get transaction count for this account
+            const transactionsResponse = await accountAPI.getAll();
+            const account = transactionsResponse.data.find(acc => acc._id === accountId);
+
+            // Fetch all transactions to count how many belong to this account
+            const { transactionAPI } = await import('../services/api');
+            const allTransactions = await transactionAPI.getAll();
+            const accountTransactionCount = allTransactions.data.filter(
+                t => t.accountId?._id === accountId || t.accountId === accountId
+            ).length;
+
+            // Show detailed confirmation
+            const warningMessage = accountTransactionCount > 0
+                ? `⚠️ WARNING: You are about to delete "${accountName}"!\n\n` +
+                `This will permanently delete:\n` +
+                `• The account "${accountName}"\n` +
+                `• ${accountTransactionCount} transaction${accountTransactionCount !== 1 ? 's' : ''} associated with this account\n\n` +
+                `This action CANNOT be undone!\n\n` +
+                `Are you absolutely sure you want to continue?`
+                : `Are you sure you want to delete "${accountName}"?\n\n` +
+                `This account has no transactions.\n\n` +
+                `This action cannot be undone.`;
+
+            const confirmed = window.confirm(warningMessage);
+
+            if (!confirmed) return;
+
+            // Delete the account
+            const response = await accountAPI.delete(accountId);
+
+            // Show success message with details
+            const deletedCount = response.data.deletedTransactions || 0;
+            if (deletedCount > 0) {
+                alert(`✅ Account "${accountName}" deleted successfully!\n\n${deletedCount} transaction${deletedCount !== 1 ? 's were' : ' was'} also deleted.`);
+            }
+
+            fetchAccounts();
+        } catch (error) {
+            alert(error.response?.data?.error || 'Error deleting account');
+        }
+    };
+
     if (loading) return <Loading fullScreen />;
 
     return (
@@ -98,8 +143,18 @@ const Accounts = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {accounts.length > 0 ? (
                     accounts.map((account) => (
-                        <Card key={account._id} className="relative overflow-hidden">
+                        <Card key={account._id} className="relative overflow-hidden group">
                             <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-full -mr-16 -mt-16" />
+
+                            {/* Delete Button */}
+                            <button
+                                onClick={() => handleDeleteAccount(account._id, account.name)}
+                                className="absolute top-3 right-3 p-2.5 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-all hover:scale-110 z-10"
+                                title="Delete Account"
+                            >
+                                <Trash2 className="w-5 h-5" />
+                            </button>
+
                             <div className="relative">
                                 <div className="flex items-center gap-3 mb-4">
                                     <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
